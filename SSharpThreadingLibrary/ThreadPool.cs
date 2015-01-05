@@ -1,6 +1,7 @@
 ﻿using System;
 using Crestron.SimplSharp;
 using WaitCallback = Crestron.SimplSharp.CrestronSharpHelperDelegate;
+using Crestron.SimplSharp.Reflection;
 
 namespace SSharp.Threading
 	{
@@ -25,7 +26,7 @@ namespace SSharp.Threading
 			var del = (Delegate)((object[])state)[0];
 			var args = (object[])((object[])state)[1];
 
-			del.Method.Invoke (del.Target, args);
+			del.GetMethod ().Invoke (del.Target, args);
 			}
 
 		public static RegisteredWaitHandle RegisterWaitForSingleObject (WaitHandle waitObject, WaitOrTimerCallback callBack, object state,

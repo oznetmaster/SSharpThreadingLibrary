@@ -83,8 +83,14 @@
     <Compile Include="Lazy.cs" />
     <Compile Include="LazyInitializer.cs" />
     <Compile Include="LazyThreadSafetyMode.cs" />
+    <Compile Include="RegisteredWaitHandle.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Semaphore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ThreadPool.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="ThreadPriority.cs" />
     <Compile Include="WaitHandle.cs" />
     <None Include="Properties\ControlSystem.cfg" />
@@ -96,9 +102,9 @@
         <ProgramIdTag>SSharpThreadingLibrary</ProgramIdTag>
         <SystemName>SSharpThreadingLibrary</SystemName>
         <Programmer />
-        <ArchiveFilename>C:\Projects\Crestron\Simpl# Libraries\SSharpThreadingLibrary\SSharpThreadingLibrary\bin\Release\SSharpThreadingLibrary.clz</ArchiveFilename>
+        <ArchiveFilename>C:\Projects\Crestron\Simpl# Libraries\SSharpThreadingLibrary\SSharpThreadingLibrary\bin\Debug\SSharpThreadingLibrary.clz</ArchiveFilename>
         <MinFirmwareVersion>1.007.0017</MinFirmwareVersion>
-        <CompiledOn>1/5/2015 8:07:54 AM</CompiledOn>
+        <CompiledOn>1/5/2015 8:24:38 AM</CompiledOn>
         <AdditionalInfo />
         <EmbedSourceArchive>False</EmbedSourceArchive>
         <CopyTo>
