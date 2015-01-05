@@ -34,10 +34,8 @@
 #if SSHARP
 using System;
 using WaitCallback = Crestron.SimplSharp.CrestronSharpHelperDelegate;
-
-#else
-using System.Runtime.InteropServices;
 #endif
+using System.Runtime.InteropServices;
 
 #if SSHARP
 
@@ -48,10 +46,7 @@ namespace System.Threading
 	{
 	public delegate void WaitOrTimerCallback (object state, bool timedOut);
 
-#if !NETCF
 	[ComVisible (true)]
-#endif
-
 	public sealed class RegisteredWaitHandle
 #if !NETCF
 		: MarshalByRefObject
@@ -140,10 +135,7 @@ namespace System.Threading
 				}
 			}
 
-#if !NETCF
 		[ComVisible (true)]
-#endif
-
 		public bool Unregister (WaitHandle waitObject)
 			{
 			lock (this)
