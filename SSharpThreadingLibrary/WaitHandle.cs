@@ -227,7 +227,7 @@ namespace SSharp.Threading
 
 		public EventWaitHandle (bool initialState, EventResetMode mode)
 			{
-			ce = new CEvent (!IsManualReaset (mode), initialState);
+			ce = new CEvent (!IsManualReset (mode), initialState);
 			waitObject = ce;
 			}
 
@@ -236,7 +236,7 @@ namespace SSharp.Threading
 			return ce.Wait (timeout);
 			}
 
-		private static bool IsManualReaset (EventResetMode mode)
+		private static bool IsManualReset (EventResetMode mode)
 			{
 			if ((mode < EventResetMode.AutoReset) || (mode > EventResetMode.ManualReset))
 				throw new ArgumentException ("mode");

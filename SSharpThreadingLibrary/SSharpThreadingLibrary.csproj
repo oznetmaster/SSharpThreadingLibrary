@@ -98,10 +98,13 @@
         <Programmer />
         <ArchiveFilename>C:\Projects\Crestron\Simpl# Libraries\SSharpThreadingLibrary\SSharpThreadingLibrary\bin\Release\SSharpThreadingLibrary.clz</ArchiveFilename>
         <MinFirmwareVersion>1.007.0017</MinFirmwareVersion>
-        <CompiledOn>12/26/2014 6:42:06 AM</CompiledOn>
+        <CompiledOn>1/5/2015 8:07:54 AM</CompiledOn>
         <AdditionalInfo />
         <EmbedSourceArchive>False</EmbedSourceArchive>
-        <CopyTo />
+        <CopyTo>
+          <DebugAnyCPU />
+          <ReleaseAnyCPU />
+        </CopyTo>
         <OriginalReferenceSources />
       </FlavorProperties>
     </VisualStudio>
