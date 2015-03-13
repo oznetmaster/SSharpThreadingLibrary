@@ -347,7 +347,7 @@ namespace ProcessHacker.Common.Threading
 		public void Dispose ()
 			{
 			Dispose (true);
-			//GC.SuppressFinalize (this);
+			CrestronEnvironment.GC.SuppressFinalize (this);
 			}
 
 		/// <summary>
@@ -985,5 +985,252 @@ namespace ProcessHacker.Common.Threading
 			ErrorLog.Error (logMessage);
 			//Debugger.Break ();
 			}
+
+		/// <summary>
+		///     Try to acquire the lock in exclusive mode, blocking for a specified time
+		///     if necessary.
+		/// </summary>
+		/// <remarks>
+		///     Exclusive acquires are given precedence over shared
+		///     acquires.
+		/// </remarks>
+		public bool TryAcquireExclusive (int msecTimeout)
+			{
+			int i = 0;
+
+#if ENABLE_STATISTICS
+			Interlocked.Increment (ref _acqExclCount);
+
+#endif
+			while (true)
+				{
+				int value = _value;
+
+				// Case 1: lock not owned AND an exclusive waiter is not waking up.
+				// Here we don't have to check if there are exclusive waiters, because 
+				// if there are the lock would be owned, and we are checking that anyway.
+				if ((value & (LockOwned | LockExclusiveWaking)) == 0)
+					{
+#if RIGOROUS_CHECKS
+                    Trace.Assert(((value >> LockSharedOwnersShift) & LockSharedOwnersMask) == 0);
+                    Trace.Assert(((value >> LockExclusiveWaitersShift) & LockExclusiveWaitersMask) == 0);
+                    Trace.Assert(((value >> LockConvertToExclusiveWaitersShift) & LockConvertToExclusiveWaitersMask) == 0);
+#endif
+					if (Interlocked.CompareExchange (ref _value, value + LockOwned, value) == value)
+						break;
+					}
+
+					// Case 2: lock owned OR lock not owned and an exclusive waiter is waking up 
+				// The second case means an exclusive waiter has just been woken up and is 
+				// going to acquire the lock. We have to go to sleep to make sure we don't 
+				// steal the lock.
+				else if (i >= SpinCount)
+					{
+#if DEFER_EVENT_CREATION
+					// This call must go *before* the next operation. Otherwise, 
+					// we will have a race condition between potential releasers 
+					// and us.
+					EnsureEventCreated (ref _exclusiveWakeEvent);
+
+#endif
+					if (Interlocked.CompareExchange (ref _value, value + LockExclusiveWaitersIncrement, value) == value)
+						{
+#if ENABLE_STATISTICS
+						Interlocked.Increment (ref _acqExclSlpCount);
+
+						int exclWtrsCount = (value >> LockExclusiveWaitersShift) & LockExclusiveWaitersMask;
+
+						Interlocked2.Set (
+							ref _peakExclWtrsCount,
+							p => p < exclWtrsCount,
+							p => exclWtrsCount
+							);
+
+#endif
+						// Go to sleep.
+						if (!_exclusiveWakeEvent.WaitOne (msecTimeout))
+							return false;
+
+						// Acquire the lock. 
+						// At this point *no one* should be able to steal the lock from us.
+						do
+							{
+							value = _value;
+#if RIGOROUS_CHECKS
+
+                            Trace.Assert((value & LockOwned) == 0);
+                            Trace.Assert((value & LockExclusiveWaking) != 0);
+#endif
+							}
+						while (Interlocked.CompareExchange (ref _value, value + LockOwned - LockExclusiveWaking, value) != value);
+
+						break;
+						}
+					}
+
+#if ENABLE_STATISTICS
+				Interlocked.Increment (ref _acqExclContCount);
+#endif
+				i++;
+				}
+
+			return true;
+			}
+
+		/// <summary>
+		///     Try to acquire the lock in shared mode, blocking for a specified time
+		///     if necessary.
+		/// </summary>
+		/// <remarks>
+		///     Exclusive acquires are given precedence over shared
+		///     acquires.
+		/// </remarks>
+		public bool TryAcquireShared (int msecTimeout)
+			{
+			int i = 0;
+
+#if ENABLE_STATISTICS
+			Interlocked.Increment (ref _acqShrdCount);
+
+#endif
+			while (true)
+				{
+				int value = _value;
+
+				// Case 1: lock not owned AND no exclusive waiter is waking up AND 
+				// there are no shared owners AND there are no exclusive waiters AND no convert to exclusive is waiting
+				if ((value & (LockOwned | (LockSharedOwnersMask << LockSharedOwnersShift) | ExclusiveMask)) == 0)
+					{
+					if (Interlocked.CompareExchange (ref _value, value + LockOwned + LockSharedOwnersIncrement, value) == value)
+						break;
+					}
+				// Case 2: lock is owned AND no exclusive waiter is waking up AND 
+				// there are shared owners AND there are no exclusive waiters AND no convert to exclusive is waiting
+				else if ((value & LockOwned) != 0 && ((value >> LockSharedOwnersShift) & LockSharedOwnersMask) != 0 && (value & ExclusiveMask) == 0)
+					{
+					if (Interlocked.CompareExchange (ref _value, value + LockSharedOwnersIncrement, value) == value)
+						break;
+					}
+				// Other cases.
+				else if (i >= SpinCount)
+					{
+#if DEFER_EVENT_CREATION
+					EnsureEventCreated (ref _sharedWakeEvent);
+
+#endif
+					if (Interlocked.CompareExchange (ref _value, value + LockSharedWaitersIncrement, value) == value)
+						{
+#if ENABLE_STATISTICS
+						Interlocked.Increment (ref _acqShrdSlpCount);
+
+						int shrdWtrsCount = (value >> LockSharedWaitersShift) & LockSharedWaitersMask;
+
+						Interlocked2.Set (
+							ref _peakShrdWtrsCount,
+							p => p < shrdWtrsCount,
+							p => shrdWtrsCount
+							);
+
+#endif
+						// Go to sleep.
+						if (!_sharedWakeEvent.WaitOne (msecTimeout))
+							return false;
+
+						// Go back and try again.
+						continue;
+						}
+					}
+
+#if ENABLE_STATISTICS
+				Interlocked.Increment (ref _acqShrdContCount);
+#endif
+				i++;
+				}
+
+			return true;
+			}
+
+		/// <summary>
+		///     Try to convert the ownership mode from shared
+		///     to exclusive.
+		/// </summary>
+		public bool TryConvertSharedToExclusive (int msecTimeout)
+			{
+			int i = 0;
+
+#if ENABLE_STATISTICS
+			Interlocked.Increment (ref _cvtExclCount);
+#endif
+
+			while (true)
+				{
+				int value = _value;
+
+#if RIGOROUS_CHECKS
+                    Trace.Assert((value & LockOwned) != 0);
+                    Trace.Assert((value & LockExclusiveWaking) == 0);
+                    Trace.Assert(((value >> LockSharedOwnersShift) & LockSharedOwnersMask) != 0);
+#endif
+
+				// Case 1: We are the last shared owner
+				if (((value >> LockSharedOwnersShift) & LockSharedOwnersMask) == 1)
+					{
+					if (Interlocked.CompareExchange (ref _value, value - LockSharedOwnersIncrement, value) == value)
+						return true;
+					}
+				// Case 2: There are still other shared owners
+				else if (i >= SpinCount)
+					{
+#if DEFER_EVENT_CREATION
+					// This call must go *before* the next operation. Otherwise, 
+					// we will have a race condition between potential releasers 
+					// and us.
+					EnsureEventCreated (ref _convertToExclusiveWakeEvent);
+
+#endif
+					if (Interlocked.CompareExchange (ref _value, value - LockSharedOwnersIncrement + LockConvertToExclusiveWaitersIncrement, value) == value)
+						{
+#if ENABLE_STATISTICS
+						Interlocked.Increment (ref _cvtExclSlpCount);
+
+						int cvtExclWtrsCount = (value >> LockConvertToExclusiveWaitersShift) & LockConvertToExclusiveWaitersMask;
+
+						Interlocked2.Set (
+							ref _peakCvtExclWtrsCount,
+							p => p < cvtExclWtrsCount,
+							p => cvtExclWtrsCount
+							);
+
+#endif
+						// Go to sleep.
+						if (!_convertToExclusiveWakeEvent.WaitOne (msecTimeout))
+							return false;
+
+						// Acquire the lock. 
+						// At this point *no one* should be able to steal the lock from us.
+						do
+							{
+							value = _value;
+#if RIGOROUS_CHECKS
+
+                            Trace.Assert((value & LockOwned) == 0);
+                            Trace.Assert((value & LockExclusiveWaking) != 0);
+#endif
+							}
+						while (Interlocked.CompareExchange (ref _value, value + LockOwned - LockExclusiveWaking, value) != value);
+
+						break;
+						}
+					}
+
+#if ENABLE_STATISTICS
+				Interlocked.Increment (ref _acqExclContCount);
+#endif
+				i++;
+				}
+
+			return true;
+			}
+
 		}
 	}

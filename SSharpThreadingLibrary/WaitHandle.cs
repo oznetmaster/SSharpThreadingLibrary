@@ -99,8 +99,7 @@ namespace SSharp.Threading
 				throw new ArgumentNullException ("waitHandles");
 
 			long endTime = millisecondsTimeout == Timeout.Infinite ? Int64.MaxValue : millisecondsTimeout;
-			var sw = new Stopwatch ();
-			sw.Start ();
+			var sw = Stopwatch.StartNew ();
 
 			int sleepTime = 0;
 
@@ -111,7 +110,7 @@ namespace SSharp.Threading
 					if (waitHandles[ix].WaitOne (0))
 						return ix;
 					}
-				CrestronEnvironment.Sleep (sleepTime++);
+				CrestronEnvironment.Sleep (++sleepTime);
 				}
 
 			return WaitTimeout;
@@ -146,41 +145,21 @@ namespace SSharp.Threading
 			if (waitHandles.Distinct ().Count () != waitHandles.Length)
 				throw new DuplicateWaitObjectException ();
 
-			long endTime = millisecondsTimeout == Timeout.Infinite ? Int64.MaxValue : millisecondsTimeout;
-			var sw = new Stopwatch ();
-			sw.Start ();
-
-			int sleepTime = 0;
-			int signaledHandles = 0;
-
-			while (sw.ElapsedMilliseconds < endTime)
-				{
-				int ix;
-				for (ix = 0; ix < waitHandles.Length; ++ix)
-					{
-					if ((signaledHandles & (1 << ix)) != 0)
-						continue;
-					if (waitHandles[ix].WaitOne ())
-						signaledHandles |= (1 << ix);
-					else
-						break;
-					}
-
-				if (ix >= waitHandles.Length)
-					return true;
-
-				CrestronEnvironment.Sleep (sleepTime++);
-				}
+			int timeLeft = millisecondsTimeout;
+			var sw = Stopwatch.StartNew ();
 
 			for (int ix = 0; ix < waitHandles.Length; ++ix)
 				{
-				if ((signaledHandles & (1 << ix)) == 0)
-					continue;
+				if (!waitHandles[ix].WaitOne (timeLeft == Timeout.Infinite ? Timeout.Infinite : Math.Max (timeLeft - (int)sw.ElapsedMilliseconds, 0)))
+					{
+					for (int iy = 0; iy < ix; ++iy)
+						waitHandles[iy].SetHandle ();
 
-				waitHandles[ix].SetHandle ();
+					return false;
+					}
 				}
 
-			return false;
+			return true;
 			}
 
 		protected virtual void Dispose (bool explicitDisposing)
@@ -223,12 +202,17 @@ namespace SSharp.Threading
 
 	public class EventWaitHandle : WaitHandle
 		{
-		private CEvent ce;
+		private readonly CEvent ce;
 
 		public EventWaitHandle (bool initialState, EventResetMode mode)
 			{
 			ce = new CEvent (!IsManualReset (mode), initialState);
 			waitObject = ce;
+			}
+
+		public EventWaitHandle (CEvent cEvent)
+			{
+			waitObject = cEvent;
 			}
 
 		protected override bool WaitOneInternal (int timeout)
@@ -267,6 +251,16 @@ namespace SSharp.Threading
 		internal override void SetHandle ()
 			{
 			Set ();
+			}
+
+		public static implicit operator CEvent (EventWaitHandle ewh)
+			{
+			return ewh.ce;
+			}
+
+		public static implicit operator EventWaitHandle (CEvent ce)
+			{
+			return new EventWaitHandle (ce);
 			}
 		}
 

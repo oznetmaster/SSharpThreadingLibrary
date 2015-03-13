@@ -272,7 +272,7 @@ namespace ProcessHacker.Common.Threading
 		public void Dispose ()
 			{
 			Dispose (true);
-			//GC.SuppressFinalize (this);
+			CrestronEnvironment.GC.SuppressFinalize (this);
 			}
 
 		/// <summary>
