@@ -1049,7 +1049,15 @@ namespace ProcessHacker.Common.Threading
 #endif
 						// Go to sleep.
 						if (!_exclusiveWakeEvent.WaitOne (msecTimeout))
-							return false;
+							{
+							do
+								{
+								value = _value;
+								if (Interlocked.CompareExchange (ref _value, value - LockExclusiveWaitersIncrement, value) == value)
+									return false;
+								}
+							while (!_exclusiveWakeEvent.WaitOne (0));
+							}
 
 						// Acquire the lock. 
 						// At this point *no one* should be able to steal the lock from us.
@@ -1134,8 +1142,15 @@ namespace ProcessHacker.Common.Threading
 #endif
 						// Go to sleep.
 						if (!_sharedWakeEvent.WaitOne (msecTimeout))
-							return false;
-
+							{
+							do
+								{
+								value = _value;
+								if (Interlocked.CompareExchange (ref _value, value - LockSharedWaitersIncrement, value) == value)
+									return false;
+								}
+							while (!_sharedWakeEvent.WaitOne (0));
+							}
 						// Go back and try again.
 						continue;
 						}
@@ -1204,7 +1219,15 @@ namespace ProcessHacker.Common.Threading
 #endif
 						// Go to sleep.
 						if (!_convertToExclusiveWakeEvent.WaitOne (msecTimeout))
-							return false;
+							{
+							do
+								{
+								value = _value;
+								if (Interlocked.CompareExchange (ref _value, value + LockSharedOwnersIncrement - LockConvertToExclusiveWaitersIncrement, value) == value)
+									return false;
+								}
+							while (!_convertToExclusiveWakeEvent.WaitOne (0));
+							}
 
 						// Acquire the lock. 
 						// At this point *no one* should be able to steal the lock from us.
