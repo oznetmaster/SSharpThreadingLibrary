@@ -47,7 +47,6 @@ namespace Crestron.SimplSharp
 			return WaitTimeout;
 			}
 
-#if false
 		public static bool WaitAll (CEventHandle[] waitHandles)
 			{
 			return WaitAll (waitHandles, Timeout.Infinite);
@@ -77,43 +76,25 @@ namespace Crestron.SimplSharp
 			if (waitHandles.Distinct ().Count () != waitHandles.Length)
 				throw new DuplicateWaitObjectException ();
 
-			long endTime = millisecondsTimeout == Timeout.Infinite ? Int64.MaxValue : millisecondsTimeout;
-			var sw = new Stopwatch ();
-			sw.Start ();
-
-			int sleepTime = 0;
-			int signaledHandles = 0;
-
-			while (sw.ElapsedMilliseconds < endTime)
-				{
-				int ix;
-				for (ix = 0; ix < waitHandles.Length; ++ix)
-					{
-					if ((signaledHandles & (1 << ix)) != 0)
-						continue;
-					if (waitHandles[ix].Wait ())
-						signaledHandles |= (1 << ix);
-					else
-						break;
-					}
-
-				if (ix >= waitHandles.Length)
-					return true;
-
-				CrestronEnvironment.Sleep (sleepTime++);
-				}
+			int timeLeft = millisecondsTimeout;
+			var sw = Stopwatch.StartNew ();
 
 			for (int ix = 0; ix < waitHandles.Length; ++ix)
 				{
-				if ((signaledHandles & (1 << ix)) == 0)
-					continue;
-
-				waitHandles[ix].SetHandle ();
+				if (!waitHandles[ix].Wait (timeLeft == Timeout.Infinite ? Timeout.Infinite : Math.Max (timeLeft - (int)sw.ElapsedMilliseconds, 0)))
+					{
+					for (int iy = 0; iy < ix; ++iy)
+						{
+						var ce = waitHandles[iy] as CEvent;
+						if (ce != null)
+							ce.Set ();
+						}
+					return false;
+					}
 				}
 
-			return false;
+			return true;
 			}
-#endif
 		}
 
 	public class DuplicateWaitObjectException : Exception
