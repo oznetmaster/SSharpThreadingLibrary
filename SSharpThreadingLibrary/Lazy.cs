@@ -55,7 +55,11 @@ namespace SSharp.Threading
 			}
 
 		public Lazy (bool isThreadSafe)
-			: this ((Func<T>)Activator.CreateInstance (typeof (T)), isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
+#if SSHARP
+			: this (() => (T)Activator.CreateInstance(typeof(T)), isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
+#else
+			: this (Activator.CreateInstance<T>, isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
+#endif
 			{
 			}
 
@@ -65,7 +69,11 @@ namespace SSharp.Threading
 			}
 
 		public Lazy (LazyThreadSafetyMode mode)
-			: this ((Func<T>)Activator.CreateInstance (typeof (T)), mode)
+#if SSHARP
+			: this (() => (T)Activator.CreateInstance (typeof (T)), mode)
+#else
+			: this (Activator.CreateInstance<T>, mode)
+#endif
 			{
 			}
 
@@ -152,6 +160,9 @@ namespace SSharp.Threading
 						{
 						if (inited)
 							return value;
+
+						if (exception != null)
+							throw exception;
 
 						if (factory == null)
 							throw exception = new InvalidOperationException ("The initialization function tries to access Value on this instance");

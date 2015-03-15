@@ -240,7 +240,7 @@ namespace ProcessHacker.Common.Threading
 			}
 		}
 
-	public class FastEventWH : WaitHandle
+	public class FastEventWH : EventWaitHandle
 		{
 		private FastEvent fe;
 
@@ -278,6 +278,11 @@ namespace ProcessHacker.Common.Threading
 		internal override void SetHandle ()
 			{
 			Set ();
+			}
+
+		internal override void ResetHandle ()
+			{
+			Reset ();
 			}
 		}
 	}

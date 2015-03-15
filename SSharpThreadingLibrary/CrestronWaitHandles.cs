@@ -6,7 +6,7 @@ using Crestron.SimplSharp;
 
 namespace SSharp.Threading
 	{
-	public class CEventWH : EventWaitHandle
+	public class CEventWH : CEventWaitHandle
 		{
 		public CEventWH (bool bAutoOrManualEvent, bool initialState)
 			: base (initialState, bAutoOrManualEvent ? EventResetMode.AutoReset : EventResetMode.ManualReset)
@@ -14,7 +14,7 @@ namespace SSharp.Threading
 			}
 		}
 
-	public class AutoResetEvent : EventWaitHandle
+	public class AutoResetEvent : CEventWaitHandle
 		{
 		public AutoResetEvent (bool initialState)
 			: base (initialState, EventResetMode.AutoReset)
@@ -22,7 +22,7 @@ namespace SSharp.Threading
 			}
 		}
 
-	public class ManualResetEvent : EventWaitHandle
+	public class ManualResetEvent : CEventWaitHandle
 		{
 		public ManualResetEvent (bool initialState)
 			: base (initialState, EventResetMode.ManualReset)
@@ -37,6 +37,7 @@ namespace SSharp.Threading
 		public CMutexWH (bool bGrabMutexOnStartUp)
 			{
 			cm = new CMutex (bGrabMutexOnStartUp);
+			waitObject = cm;
 			}
 
 		public override void Close ()

@@ -30,6 +30,7 @@ using System.Diagnostics;
 using System.Linq;
 using Crestron.SimplSharp;
 using SSharp.Threading;
+using Stopwatch = Crestron.SimplSharp.Stopwatch;
 #if RIGPROUS_CHECKS
 using Trace = SSMono.Diagnostics.Trace;
 #endif
@@ -194,13 +195,16 @@ namespace ProcessHacker.Common.Threading
 		private int _value;
 		//private int _spinCount;
 		private const int _spinCount = 0;
-		private WaitHandle _wakeEvent;
+		private EventWaitHandle _wakeEvent;
+		private EventWaitHandle _sleepEvent;
 
 		private SpinLock _lock;
 		private LinkedList<WaitBlockFlags> _waitersList;
 		private LinkedListNode<WaitBlockFlags> _firstSharedWaiter;
 
 		private readonly IDisposable _fairResourceLockContext;
+
+		private readonly static long TicksPerMsec = Stopwatch.Frequency / 1000;
 
 #if ENABLE_STATISTICS
 		private int _exclusiveWaitersCount;
@@ -246,9 +250,9 @@ namespace ProcessHacker.Common.Threading
 
 			_fairResourceLockContext = new FairResourceLockContext (this);
 
-
 #if !DEFER_EVENT_CREATION
-            _wakeEvent = CreateWakeEvent();
+            _wakeEvent = CreateEvent (false);
+			_sleepEvent = CreateEvent (true);
 #endif
 			}
 
@@ -490,6 +494,31 @@ namespace ProcessHacker.Common.Threading
 			return _fairResourceLockContext;
 			}
 
+#if DEFER_EVENT_CREATION
+		private void CreateEvents ()
+			{
+			EventWaitHandle wakeEvent = Interlocked.CompareExchange (ref _wakeEvent, null, null);
+
+			if (wakeEvent == null)
+				{
+				wakeEvent = CreateEvent (false);
+
+				if (Interlocked.CompareExchange (ref _wakeEvent, wakeEvent, null) != null)
+					wakeEvent.Close ();
+				}
+
+			EventWaitHandle sleepEvent = Interlocked.CompareExchange (ref _sleepEvent, null, null);
+
+			if (sleepEvent == null)
+				{
+				sleepEvent = CreateEvent (true);
+
+				if (Interlocked.CompareExchange (ref _sleepEvent, sleepEvent, null) != null)
+					sleepEvent.Close ();
+				}
+			}
+#endif
+
 		/// <summary>
 		///     Blocks on a wait block.
 		/// </summary>
@@ -499,17 +528,7 @@ namespace ProcessHacker.Common.Threading
 			int flags;
 
 #if DEFER_EVENT_CREATION
-
-			WaitHandle wakeEvent = Interlocked.CompareExchange (ref _wakeEvent, null, null);
-
-			if (wakeEvent == null)
-				{
-				wakeEvent = CreateWakeEvent ();
-
-				if (Interlocked.CompareExchange (ref _wakeEvent, wakeEvent, null) != null)
-					wakeEvent.Close ();
-				}
-
+			CreateEvents ();
 #endif
 			// Clear the spinning flag.
 			do
@@ -528,9 +547,86 @@ namespace ProcessHacker.Common.Threading
 					Interlocked.Increment (ref _acqShrdSlpCount);
 
 #endif
-				if (!wakeEvent.WaitOne ())
-					throw new Exception (MsgFailedToWaitIndefinitely);
+				while (waitBlock.List == _waitersList)
+					{
+					_sleepEvent.WaitOne ();
+
+					if (!_wakeEvent.WaitOne ())
+						throw new Exception (MsgFailedToWaitIndefinitely);
+					}
 				}
+			}
+
+		/// <summary>
+		///     Blocks on a wait block.
+		/// </summary>
+		/// <param name="waitBlock">The wait block to block on.</param>
+		/// <param name="msecTimeout">The time to wait on the waitblock.</param>
+		private bool Block (LinkedListNode<WaitBlockFlags> waitBlock, int msecTimeout)
+			{
+			int flags;
+
+			if (msecTimeout == Timeout.Infinite)
+				{
+				Block (waitBlock);
+				return true;
+				}
+
+#if DEFER_EVENT_CREATION
+			CreateEvents ();
+#endif
+			// Clear the spinning flag.
+			do
+				{
+				flags = waitBlock.Value.Flags;
+				}
+			while (Interlocked.CompareExchange (ref waitBlock.Value.Flags, flags & ~WaiterSpinning, flags) != flags);
+
+			// Go to sleep if necessary.
+			if ((flags & WaiterSpinning) != 0)
+				{
+#if ENABLE_STATISTICS
+				if ((waitBlock.Value.Flags & WaiterExclusive) != 0)
+					Interlocked.Increment (ref _acqExclSlpCount);
+				else
+					Interlocked.Increment (ref _acqShrdSlpCount);
+
+#endif
+				long startTicks = Stopwatch.GetTimestamp ();
+				long endTicks = startTicks + msecTimeout * TicksPerMsec;
+				long currentTicks;
+
+				while (waitBlock.List == _waitersList  && (currentTicks = Stopwatch.GetTimestamp ()) <= endTicks)
+					{
+					_sleepEvent.WaitOne ();
+
+					if (!_wakeEvent.WaitOne ((int)((endTicks - currentTicks) / TicksPerMsec)))
+						{
+						// Set the spinning flag.
+						do
+							{
+							flags = waitBlock.Value.Flags;
+							if (Interlocked.CompareExchange (ref waitBlock.Value.Flags, flags | WaiterSpinning, flags) == flags)
+								return false;
+							}
+						while (_sleepEvent.WaitOne () && !_wakeEvent.WaitOne (0));
+						}
+					}
+
+				if (waitBlock.List != _waitersList)
+					return true;
+
+				// Set the spinning flag.
+				do
+					{
+					flags = waitBlock.Value.Flags;
+					}
+				while (Interlocked.CompareExchange (ref waitBlock.Value.Flags, flags | WaiterSpinning, flags) != flags);
+
+				return false;
+				}
+
+			return true;
 			}
 
 		/// <summary>
@@ -629,13 +725,13 @@ namespace ProcessHacker.Common.Threading
 		/// <summary>
 		///     Creates a wake event.
 		/// </summary>
-		/// <returns>A handle to the keyed event.</returns>
-		private WaitHandle CreateWakeEvent ()
+		/// <returns>A handle to the event.</returns>
+		private EventWaitHandle CreateEvent (bool initialState)
 			{
 #if USE_FAST_EVENT
-			return new FastEventWH (true, false);
+			return new FastEventWH (false, initialState);
 #else
-			return new AutoResetEvent (false);
+			return new ManualResetEvent (initialState);
 #endif
 			}
 
@@ -808,10 +904,357 @@ namespace ProcessHacker.Common.Threading
 			}
 
 		/// <summary>
+		///     Tries to acquire the lock in exclusive mode, blocking
+		///     if necessary.
+		/// </summary>
+		/// <remarks>
+		///     Exclusive acquires are given precedence over shared
+		///     acquires.
+		/// </remarks>
+		/// <param name="msecTimeout">Timeout to wait for the aquisition of the lock</param>
+		/// <returns>Whether the lock was acquired.</returns>
+		public bool TryAcquireExclusive (int msecTimeout)
+			{
+			int i = 0;
+
+#if ENABLE_STATISTICS
+			Interlocked.Increment (ref _acqExclCount);
+
+#endif
+			while (true)
+				{
+				int value = _value;
+
+				// Try to obtain the lock.
+				if ((value & LockOwned) == 0)
+					{
+#if RIGOROUS_CHECKS
+					Trace.Assert (((value >> LockSharedOwnersShift) & LockSharedOwnersMask) == 0);
+
+#endif
+					if (Interlocked.CompareExchange (ref _value, value + LockOwned, value) == value)
+						break;
+					}
+				else if (i >= _spinCount)
+					{
+					// We need to wait.
+					var waitBlock = new LinkedListNode<WaitBlockFlags> (new WaitBlockFlags (WaiterExclusive | WaiterSpinning));
+
+
+					// Obtain the waiters list lock.
+					_lock.Acquire ();
+
+					try
+						{
+						// Try to set the waiters bit.
+						if (Interlocked.CompareExchange (ref _value, value | LockWaiters, value) != value)
+							{
+#if ENABLE_STATISTICS
+							Interlocked.Increment (ref _insWaitBlkRetryCount);
+
+#endif
+							// Unfortunately we have to go back. This is 
+							// very wasteful since the waiters list lock 
+							// must be released again, but must happen since 
+							// the lock may have been released.
+							continue;
+							}
+
+						// Put our wait block behind other exclusive waiters but 
+						// in front of all shared waiters.
+						//this.InsertWaitBlock (&waitBlock, ListPosition.LastExclusive);
+						InsertWaitBlock (waitBlock, ListPosition.LastExclusive);
+#if ENABLE_STATISTICS
+
+						_exclusiveWaitersCount++;
+
+						if (_peakExclWtrsCount < _exclusiveWaitersCount)
+							_peakExclWtrsCount = _exclusiveWaitersCount;
+#endif
+						}
+					finally
+						{
+						_lock.Release ();
+						}
+
+#if ENABLE_STATISTICS
+					Interlocked.Increment (ref _acqExclBlkCount);
+#endif
+					if (!Block (waitBlock, msecTimeout))
+						{
+						_lock.Acquire ();
+						try
+							{
+							if (waitBlock.List != null)
+								{
+								_waitersList.Remove (waitBlock);
+
+								if (_waitersList.Count == 1)
+									{
+									// No more waiters. Clear the waiters bit.
+									do
+										{
+										value = _value;
+										}
+									while (Interlocked.CompareExchange (ref _value, value & ~LockWaiters, value) != value);
+									}
+
+								return false;
+								}
+							}
+						finally
+							{
+							_lock.Release ();
+							}
+						}
+
+					// Go back and try again.
+					continue;
+					}
+
+#if ENABLE_STATISTICS
+				Interlocked.Increment (ref _acqExclContCount);
+#endif
+				i++;
+				}
+
+			return true;
+			}
+
+		/// <summary>
+		///     Tries to acquire the lock in shared mode, blocking
+		///     if necessary.
+		/// </summary>
+		/// <remarks>
+		///     Exclusive acquires are given precedence over shared
+		///     acquires.
+		/// </remarks>
+		/// <param name="msecTimeout">Timeout to wait for the aquisition of the lock</param>
+		/// <returns>Whether the lock was acquired.</returns>
+		public bool TryAcquireShared (int msecTimeout)
+			{
+			int i = 0;
+
+#if ENABLE_STATISTICS
+			Interlocked.Increment (ref _acqShrdCount);
+
+#endif
+			while (true)
+				{
+				int value = _value;
+
+				// Try to obtain the lock.
+				// Note that we don't acquire if there are waiters and 
+				// the lock is already owned in shared mode, in order to 
+				// give exclusive acquires precedence.
+				if ((value & LockOwned) == 0 || ((value & LockWaiters) == 0 && ((value >> LockSharedOwnersShift) & LockSharedOwnersMask) != 0))
+					{
+					if ((value & LockOwned) == 0)
+						{
+#if RIGOROUS_CHECKS
+						Trace.Assert (((value >> LockSharedOwnersShift) & LockSharedOwnersMask) == 0);
+
+#endif
+						if (Interlocked.CompareExchange (ref _value, value + LockOwned + LockSharedOwnersIncrement, value) == value)
+							break;
+						}
+					else
+						{
+						if (Interlocked.CompareExchange (ref _value, value + LockSharedOwnersIncrement, value) == value)
+							break;
+						}
+					}
+				else if (i >= _spinCount)
+					{
+					// We need to wait.
+					var waitBlock = new LinkedListNode<WaitBlockFlags> (new WaitBlockFlags (WaiterSpinning));
+
+
+					// Obtain the waiters list lock.
+					_lock.Acquire ();
+
+					try
+						{
+						// Try to set the waiters bit.
+						if (Interlocked.CompareExchange (ref _value, value | LockWaiters, value) != value)
+							{
+#if ENABLE_STATISTICS
+							Interlocked.Increment (ref _insWaitBlkRetryCount);
+
+#endif
+							continue;
+							}
+
+						// Put our wait block behind other waiters.
+						InsertWaitBlock (waitBlock, ListPosition.Last);
+
+						// Set the first shared waiter pointer.
+						if (waitBlock.Previous == null || (waitBlock.Previous.Value.Flags & WaiterExclusive) != 0)
+							_firstSharedWaiter = waitBlock;
+#if ENABLE_STATISTICS
+
+						_sharedWaitersCount++;
+
+						if (_peakShrdWtrsCount < _sharedWaitersCount)
+							_peakShrdWtrsCount = _sharedWaitersCount;
+#endif
+						}
+					finally
+						{
+						_lock.Release ();
+						}
+
+#if ENABLE_STATISTICS
+					Interlocked.Increment (ref _acqShrdBlkCount);
+#endif
+					if (!Block (waitBlock, msecTimeout))
+						{
+						_lock.Acquire ();
+						try
+							{
+							if (waitBlock.List != null)
+								{
+								if (_firstSharedWaiter == waitBlock)
+									_firstSharedWaiter = waitBlock.Next;
+
+								_waitersList.Remove (waitBlock);
+
+								if (_waitersList.Count == 1)
+									{
+									// No more waiters. Clear the waiters bit.
+									do
+										{
+										value = _value;
+										}
+									while (Interlocked.CompareExchange (ref _value, value & ~LockWaiters, value) != value);
+									}
+
+								return false;
+								}
+							}
+						finally
+							{
+							_lock.Release ();
+							}
+						}
+
+					// Go back and try again.
+					continue;
+					}
+
+#if ENABLE_STATISTICS
+				Interlocked.Increment (ref _acqShrdContCount);
+#endif
+				i++;
+				}
+
+			return true;
+			}
+
+		/// <summary>
+		///     Try to convert the ownership mode from shared to exclusive,
+		///     blocking if necessary.
+		/// </summary>
+		/// <remarks>
+		///     This operation is almost the same as releasing then
+		///     acquiring in exclusive mode, except that the caller is
+		///     placed ahead of all other waiters when acquiring.
+		/// </remarks>
+		/// <param name="msecTimeout">Timeout to wait for the aquisition of the lock</param>
+		/// <returns>Whether the lock was acquired.</returns>
+		public bool TryConvertSharedToExclusive (int msecTimeout)
+			{
+			int i = 0;
+
+			while (true)
+				{
+				int value = _value;
+
+				// Are we the only shared waiter? If so, acquire in exclusive mode, 
+				// otherwise wait.
+				if (((value >> LockSharedOwnersShift) & LockSharedOwnersMask) == 1)
+					{
+					if (Interlocked.CompareExchange (ref _value, value - LockSharedOwnersIncrement, value) == value)
+						break;
+					}
+				else if (i >= _spinCount)
+					{
+					// We need to wait.
+					var waitBlock = new LinkedListNode<WaitBlockFlags> (new WaitBlockFlags (WaiterExclusive | WaiterSpinning));
+
+					// Obtain the waiters list lock.
+					_lock.Acquire ();
+
+					try
+						{
+						// Try to set the waiters bit.
+						if (Interlocked.CompareExchange (ref _value, value | LockWaiters, value) != value)
+							{
+#if ENABLE_STATISTICS
+							Interlocked.Increment (ref _insWaitBlkRetryCount);
+
+#endif
+							continue;
+							}
+
+						// Put our wait block ahead of all other waiters.
+						InsertWaitBlock (waitBlock, ListPosition.First);
+#if ENABLE_STATISTICS
+
+						_exclusiveWaitersCount++;
+
+						if (_peakExclWtrsCount < _exclusiveWaitersCount)
+							_peakExclWtrsCount = _exclusiveWaitersCount;
+#endif
+						}
+					finally
+						{
+						_lock.Release ();
+						}
+
+					if (!Block (waitBlock, msecTimeout))
+						{
+						_lock.Acquire ();
+						try
+							{
+							if (waitBlock.List != null)
+								{
+								_waitersList.Remove (waitBlock);
+
+								if (_waitersList.Count == 1)
+									{
+									// No more waiters. Clear the waiters bit.
+									do
+										{
+										value = _value;
+										}
+									while (Interlocked.CompareExchange (ref _value, value & ~LockWaiters, value) != value);
+									}
+
+								return false;
+								}
+							}
+						finally
+							{
+							_lock.Release ();
+							}
+						}
+
+					// Go back and try again.
+					continue;
+					}
+
+				i++;
+				}
+
+			return true;
+			}
+
+		/// <summary>
 		///     Unblocks a wait block.
 		/// </summary>
 		/// <param name="waitBlock">The wait block to unblock.</param>
-		private void Unblock (LinkedListNode<WaitBlockFlags> waitBlock)
+		private bool Unblock (LinkedListNode<WaitBlockFlags> waitBlock)
 			{
 			int flags;
 
@@ -828,11 +1271,22 @@ namespace ProcessHacker.Common.Threading
 				Trace.Assert (_wakeEvent != null);
 
 #endif
-#if USE_FAST_EVENT
-				((FastEventWH)_wakeEvent).Set ();
-#else
-				((AutoResetEvent)_wakeEvent).Set ();
-#endif
+				return true;
+				}
+
+			return false;
+			}
+
+		private object _lockEvents = new object ();
+
+		private void Unblock ()
+			{
+			lock (_lockEvents)
+				{
+				_sleepEvent.ResetHandle ();
+				_wakeEvent.SetHandle ();
+				_wakeEvent.ResetHandle ();
+				_sleepEvent.SetHandle ();
 				}
 			}
 
@@ -950,17 +1404,21 @@ namespace ProcessHacker.Common.Threading
 			// If we removed one exclusive waiter, unblock it.
 			if (exclusiveWb != null)
 				{
-				Unblock (exclusiveWb);
+				if (Unblock (exclusiveWb))
+					Unblock ();
 				return;
 				}
 
 			// Carefully traverse the wake list and wake each shared waiter.
 			wb = wakeList.First;
+			bool unblock = false;
 			while (wb != null)
 				{
-				Unblock (wb);
+				unblock |= Unblock (wb);
 				wb = wb.Next;
 				}
+			if (unblock)
+				Unblock ();
 			}
 
 		/// <summary>
@@ -1005,7 +1463,10 @@ namespace ProcessHacker.Common.Threading
 				}
 
 			if (exclusiveWb != null)
-				Unblock (exclusiveWb);
+				{
+				if (Unblock (exclusiveWb))
+					Unblock ();
+				}
 			}
 
 		/// <summary>
@@ -1067,11 +1528,14 @@ namespace ProcessHacker.Common.Threading
 			// Carefully traverse the wake list and wake each waiter.
 
 			wb = wakeList.First;
+			bool unblock = false;
 			while (wb != null)
 				{
-				Unblock (wb);
+				unblock |= Unblock (wb);
 				wb = wb.Next;
 				}
+			if (unblock)
+				Unblock ();
 			}
 		}
 	}

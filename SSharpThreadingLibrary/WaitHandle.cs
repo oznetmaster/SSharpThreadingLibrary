@@ -28,6 +28,8 @@ namespace SSharp.Threading
 		public virtual void Close ()
 			{
 			Dispose (true);
+
+			CrestronEnvironment.GC.SuppressFinalize (this);
 			}
 
 		public virtual bool WaitOne ()
@@ -98,6 +100,10 @@ namespace SSharp.Threading
 			if (waitHandles == null || waitHandles.Any (w => w == null))
 				throw new ArgumentNullException ("waitHandles");
 
+			if (waitHandles.Length == 0)
+				throw new ArgumentException ("waitHandles");
+
+
 			long endTime = millisecondsTimeout == Timeout.Infinite ? Int64.MaxValue : millisecondsTimeout;
 			var sw = Stopwatch.StartNew ();
 
@@ -136,10 +142,7 @@ namespace SSharp.Threading
 			if (millisecondsTimeout < Timeout.Infinite)
 				throw new ArgumentOutOfRangeException ("millisecondsTimeout");
 
-			if (waitHandles.Length > 64)
-				throw new NotSupportedException ("Maximum of 64 wait handles");
-
-			if (waitHandles == null || waitHandles.Any (w => w == null))
+			if (waitHandles == null || waitHandles.Length == 0 || waitHandles.Any (w => w == null))
 				throw new ArgumentNullException ("waitHandles");
 
 			if (waitHandles.Distinct ().Count () != waitHandles.Length)
@@ -200,17 +203,22 @@ namespace SSharp.Threading
 		#endregion
 		}
 
-	public class EventWaitHandle : WaitHandle
+	public abstract class EventWaitHandle : WaitHandle
+		{
+		internal abstract void ResetHandle ();
+		}
+
+	public class CEventWaitHandle : EventWaitHandle
 		{
 		private readonly CEvent ce;
 
-		public EventWaitHandle (bool initialState, EventResetMode mode)
+		public CEventWaitHandle (bool initialState, EventResetMode mode)
 			{
 			ce = new CEvent (!IsManualReset (mode), initialState);
 			waitObject = ce;
 			}
 
-		public EventWaitHandle (CEvent cEvent)
+		public CEventWaitHandle (CEvent cEvent)
 			{
 			waitObject = cEvent;
 			}
@@ -253,14 +261,19 @@ namespace SSharp.Threading
 			Set ();
 			}
 
-		public static implicit operator CEvent (EventWaitHandle ewh)
+		internal override void ResetHandle ()
+			{
+			Reset ();
+			}
+
+		public static implicit operator CEvent (CEventWaitHandle ewh)
 			{
 			return ewh.ce;
 			}
 
-		public static implicit operator EventWaitHandle (CEvent ce)
+		public static implicit operator CEventWaitHandle (CEvent ce)
 			{
-			return new EventWaitHandle (ce);
+			return new CEventWaitHandle (ce);
 			}
 		}
 

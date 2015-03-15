@@ -29,8 +29,7 @@ namespace Crestron.SimplSharp
 				throw new ArgumentNullException ("waitHandles");
 
 			long endTime = millisecondsTimeout == Timeout.Infinite ? Int64.MaxValue : millisecondsTimeout;
-			var sw = new Stopwatch ();
-			sw.Start ();
+			var sw = Stopwatch.StartNew ();
 
 			int sleepTime = 0;
 
