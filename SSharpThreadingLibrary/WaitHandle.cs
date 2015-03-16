@@ -220,7 +220,8 @@ namespace SSharp.Threading
 
 		public CEventWaitHandle (CEvent cEvent)
 			{
-			waitObject = cEvent;
+			ce = cEvent;
+			waitObject = ce;
 			}
 
 		protected override bool WaitOneInternal (int timeout)
