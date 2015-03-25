@@ -263,11 +263,17 @@ namespace ProcessHacker.Common.Threading
 
 		private void Dispose (bool disposing)
 			{
-			_waitersList.Clear ();
-			_waitersList = null;
+			if (_waitersList != null)
+				{
+				_waitersList.Clear ();
+				_waitersList = null;
+				}
 
-			_wakeEvent.Close ();
-			_wakeEvent = null;
+			if (_wakeEvent != null)
+				{
+				_wakeEvent.Close ();
+				_wakeEvent = null;
+				}
 			}
 
 		/// <summary>
