@@ -109,7 +109,7 @@ namespace SSharp.Threading
 
 			int sleepTime = 0;
 
-			while (sw.ElapsedMilliseconds < endTime)
+			while (sw.ElapsedMilliseconds <= endTime)
 				{
 				for (int ix = 0; ix < waitHandles.Length; ++ix)
 					{

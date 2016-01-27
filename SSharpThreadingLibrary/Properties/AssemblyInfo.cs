@@ -8,3 +8,4 @@ using System.Runtime.CompilerServices;
 [assembly: AssemblyVersion ("1.0.0.*")]
 
 [assembly: InternalsVisibleTo ("SSMonoProThreadingLibrary")]
+[assembly: InternalsVisibleTo ("SSMonoThreadPoolLibrary")]

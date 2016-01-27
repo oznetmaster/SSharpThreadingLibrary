@@ -40,6 +40,17 @@ namespace SSharp.Threading
 			waitObject = cm;
 			}
 
+		public CMutexWH () : this (false)
+			{
+			
+			}
+
+		private CMutexWH (CMutex cm)
+			{
+			this.cm = cm;
+			waitObject = cm;
+			}
+
 		public override void Close ()
 			{
 			cm.Close ();
@@ -60,6 +71,16 @@ namespace SSharp.Threading
 		internal override void SetHandle ()
 			{
 			ReleaseMutex ();
+			}
+
+		public static implicit operator CMutex (CMutexWH mwh)
+			{
+			return mwh.cm;
+			}
+
+		public static implicit operator CMutexWH (CMutex cm)
+			{
+			return new CMutexWH (cm);
 			}
 		}
 	}
