@@ -33,6 +33,7 @@ namespace SSharp.Threading
 #else
 			m_gate = new CEvent (true, m_currentCount > 0);
 #endif
+			waitObject = m_gate;
 			}
 
 		public int Release ()
