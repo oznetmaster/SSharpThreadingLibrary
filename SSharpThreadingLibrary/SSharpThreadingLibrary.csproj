@@ -63,12 +63,17 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\ProgramData\Crestron\SDK\SimplSharpReflectionInterface.dll</HintPath>
     </Reference>
+    <Reference Include="SSharpReflectionExtensionsLibrary, Version=1.0.0.20457, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\SSharpReflectionExtensionsLibrary\SSharpReflectionExtensionsLibrary\bin\Release\SSharpReflectionExtensionsLibrary.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CEventHandleEx.cs" />
+    <Compile Include="CrestronThread.cs" />
     <Compile Include="CrestronWaitHandles.cs" />
     <Compile Include="FastThreading\FairResourceLock.cs" />
     <Compile Include="FastThreading\FastEvent.cs" />
@@ -100,11 +105,13 @@
         <Programmer />
         <ArchiveFilename>C:\Projects\Crestron\Simpl# Libraries\SSharpThreadingLibrary\SSharpThreadingLibrary\bin\Release\SSharpThreadingLibrary.clz</ArchiveFilename>
         <MinFirmwareVersion>1.007.0017</MinFirmwareVersion>
-        <CompiledOn>1/27/2016 1:36:12 PM</CompiledOn>
+        <CompiledOn>3/7/2016 9:25:25 AM</CompiledOn>
         <AdditionalInfo />
         <EmbedSourceArchive>False</EmbedSourceArchive>
         <CopyTo />
-        <OriginalReferenceSources />
+        <OriginalReferenceSources>
+          <Reference sourceFilename="../../SSharpReflectionExtensionsLibrary/SSharpReflectionExtensionsLibrary/bin/Release/SSharpReflectionExtensionsLibrary.dll" referenceName="SSharpReflectionExtensionsLibrary" />
+        </OriginalReferenceSources>
       </FlavorProperties>
     </VisualStudio>
   </ProjectExtensions>
