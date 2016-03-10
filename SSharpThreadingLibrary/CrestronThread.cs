@@ -490,5 +490,21 @@ namespace SSharp.CrestronThread
 
 			_delStartObject (obj);
 			}
+
+		public static bool operator == (Thread thread1, Thread thread2)
+			{
+			if (thread1 == null)
+				return thread2 == null;
+
+			return thread2 != null && thread1.m_cThread != null && thread2.m_cThread != null && thread1.ManagedThreadId == thread2.ManagedThreadId;
+			}
+
+		public static bool operator != (Thread thread1, Thread thread2)
+			{
+			if (thread1 == null)
+				return thread2 != null;
+
+			return thread2 == null || thread1.m_cThread == null || thread2.m_cThread == null || thread1.ManagedThreadId != thread2.ManagedThreadId;
+			}
 		}
 	}
