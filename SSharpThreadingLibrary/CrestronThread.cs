@@ -171,6 +171,11 @@ namespace SSharp.CrestronThread
 
 		public static bool IsPro
 			{
+			get { return _isPro && _ctypeThread != null; }
+			}
+
+		public static bool IsMiniPro
+			{
 			get { return _ctypeThread != null; }
 			}
 
