@@ -29,10 +29,7 @@
 
 #if NET_4_0 || SSHARP
 
-using System;
-using Activator = Crestron.SimplSharp.Reflection.Activator;
-
-namespace SSharp.Threading
+namespace System
 	{
 	[SerializableAttribute]
 	public class Lazy<T>
@@ -56,7 +53,7 @@ namespace SSharp.Threading
 
 		public Lazy (bool isThreadSafe)
 #if SSHARP
-			: this (() => (T)Activator.CreateInstance(typeof(T)), isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
+			: this (() => (T)Crestron.SimplSharp.Reflection.Activator.CreateInstance(typeof(T)), isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
 #else
 			: this (Activator.CreateInstance<T>, isThreadSafe ? LazyThreadSafetyMode.ExecutionAndPublication : LazyThreadSafetyMode.None)
 #endif
@@ -70,7 +67,7 @@ namespace SSharp.Threading
 
 		public Lazy (LazyThreadSafetyMode mode)
 #if SSHARP
-			: this (() => (T)Activator.CreateInstance (typeof (T)), mode)
+			: this (() => (T)Crestron.SimplSharp.Reflection.Activator.CreateInstance (typeof (T)), mode)
 #else
 			: this (Activator.CreateInstance<T>, mode)
 #endif

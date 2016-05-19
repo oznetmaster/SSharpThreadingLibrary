@@ -69,8 +69,10 @@ namespace ProcessHacker.Common.Threading
 			//	}
 			//else
 				{
+				int ncount = 0;
+
 				while (Interlocked.CompareExchange (ref _value, 1, 0) == 1)
-					CrestronEnvironment.Sleep (0);
+					CrestronEnvironment.Sleep (++ncount % 10 == 0 ? 1 : 0);
 				}
 			}
 

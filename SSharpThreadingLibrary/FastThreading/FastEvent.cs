@@ -140,8 +140,10 @@ namespace ProcessHacker.Common.Threading
 			if ((_value & EventSet) != 0)
 				return;
 
+			int ncount = 0;
+
 			while ((_value & EventSet) == 0)
-				CrestronEnvironment.Sleep (0);
+				CrestronEnvironment.Sleep (++ncount % 10 == 0 ? 1 : 0);
 			}
 
 		/// <summary>

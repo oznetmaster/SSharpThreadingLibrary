@@ -28,9 +28,7 @@
 
 #if NET_4_0 || SSHARP
 
-using System;
-
-namespace SSharp.Threading
+namespace System
 	{
 	public enum LazyThreadSafetyMode
 		{

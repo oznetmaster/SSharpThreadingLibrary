@@ -755,6 +755,8 @@ namespace ProcessHacker.Common.Threading
 		/// </remarks>
 		public IDisposable SpinAcquireExclusive ()
 			{
+			int ncount = 0;
+
 			while (true)
 				{
 				int value = _value;
@@ -765,7 +767,7 @@ namespace ProcessHacker.Common.Threading
 						break;
 					}
 
-				CrestronEnvironment.Sleep (0);
+				CrestronEnvironment.Sleep (++ncount % 10 == 0 ? 1 : 0);
 				}
 
 			return _fastResourceLockContext;
@@ -781,6 +783,8 @@ namespace ProcessHacker.Common.Threading
 		/// </remarks>
 		public IDisposable SpinAcquireShared ()
 			{
+			int ncount = 0;
+
 			while (true)
 				{
 				int value = _value;
@@ -799,7 +803,7 @@ namespace ProcessHacker.Common.Threading
 						}
 					}
 
-				CrestronEnvironment.Sleep (0);
+				CrestronEnvironment.Sleep (++ncount % 10 == 0 ? 1 : 0);
 				}
 
 			return _fastResourceLockContext;
@@ -811,6 +815,8 @@ namespace ProcessHacker.Common.Threading
 		/// </summary>
 		public void SpinConvertSharedToExclusive ()
 			{
+			int ncount = 0;
+
 			while (true)
 				{
 				int value = _value;
@@ -822,7 +828,7 @@ namespace ProcessHacker.Common.Threading
 						break;
 					}
 
-				CrestronEnvironment.Sleep (0);
+				CrestronEnvironment.Sleep (++ncount % 10 == 0 ? 1 : 0);
 				}
 			}
 
