@@ -98,20 +98,6 @@
   <Import Project="$(MSBuildBinPath)\Microsoft.CompactFramework.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <FlavorProperties GUID="{0B4745B0-194B-4BB6-8E21-E9057CA92500}">
-        <ProgramIdTag>SSharpThreadingLibrary</ProgramIdTag>
-        <SystemName>SSharpThreadingLibrary</SystemName>
-        <Programmer />
-        <ArchiveFilename>C:\Projects\Crestron\Simpl# Libraries\SSharpThreadingLibrary\SSharpThreadingLibrary\bin\Release\SSharpThreadingLibrary.clz</ArchiveFilename>
-        <MinFirmwareVersion>1.007.0017</MinFirmwareVersion>
-        <CompiledOn>4/28/2016 8:02:00 AM</CompiledOn>
-        <AdditionalInfo />
-        <EmbedSourceArchive>False</EmbedSourceArchive>
-        <CopyTo />
-        <OriginalReferenceSources>
-          <Reference sourceFilename="../../SSharpReflectionExtensionsLibrary/SSharpReflectionExtensionsLibrary/bin/Release/SSharpReflectionExtensionsLibrary.dll" referenceName="SSharpReflectionExtensionsLibrary" />
-        </OriginalReferenceSources>
-      </FlavorProperties>
     </VisualStudio>
   </ProjectExtensions>
 </Project>

@@ -67,7 +67,6 @@ namespace SSharp.CrestronThread
 		private delegate int DelGet_ManagedThreadId ();
 
 		private static bool _isPro;
-		private static readonly Assembly _assCrestronThread;
 		private static readonly CType _ctypeThread;
 		private static readonly CType _ctypeThreadCallbackFunction;
 		private static readonly CType _ctypeThreadStartOptions;
@@ -123,13 +122,11 @@ namespace SSharp.CrestronThread
 			if (_ctypeThread == null)
 				return;
 
-			_assCrestronThread = _ctypeThread.Assembly;
-
-			_ctypeThreadCallbackFunction = _assCrestronThread.GetType ("Crestron.SimplSharpPro.CrestronThread.ThreadCallbackFunction");
-			_ctypeThreadStartOptions = _assCrestronThread.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadStartOptions");
-			_ctypeThreadPriority = _assCrestronThread.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadPriority");
-			_ctypeThreadState = _assCrestronThread.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadStates");
-			_ctypeThreadType = _assCrestronThread.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadType");
+			_ctypeThreadCallbackFunction = Type.GetType ("Crestron.SimplSharpPro.CrestronThread.ThreadCallbackFunction, SimplSharpPro");
+			_ctypeThreadStartOptions = Type.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadStartOptions, SimplSharpPro");
+			_ctypeThreadPriority = Type.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadPriority, SimplSharpPro");
+			_ctypeThreadState = Type.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadStates, SimplSharpPro");
+			_ctypeThreadType = Type.GetType ("Crestron.SimplSharpPro.CrestronThread.Thread+eThreadType, SimplSharpPro");
 
 			_propCurrentThread = _ctypeThread.GetProperty ("CurrentThread");
 			_propPriority = _ctypeThread.GetProperty ("Priority");
